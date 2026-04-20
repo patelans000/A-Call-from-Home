@@ -122,10 +122,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:var
   object-fit:contain;
   bottom:0;
   opacity:0;
-  transition:opacity .35s;
+  transform:scale(1);
+  transition:opacity .3s ease-out, transform .3s ease-out;
   pointer-events:none;
 }
-.expr-img.expr-active{opacity:1;}
+.expr-img.expr-active{
+  opacity:1;
+  animation:expr-pop .3s ease-out;
+}
+@keyframes expr-pop{
+  0%{transform:scale(.93);opacity:0;}
+  100%{transform:scale(1);opacity:1;}
+}
 
 /* fallback placeholder shown only when no images loaded */
 .parent-placeholder{
@@ -305,26 +313,22 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:var
           ══════════════════════════════════════════
           DROP YOUR ILLUSTRATION FILES HERE.
           Replace src="" with actual filenames.
-          All 6 <img> tags must stay exactly as-is;
-          only the src values change.
+          3 PNG files total - mom & dad combined in each.
 
           Dimensions: 520 × 620 px PNG, transparent bg
           Display size: ~260px wide (2× for retina)
           ══════════════════════════════════════════
         -->
-        <img id="expr-mom-neutral" class="expr-img" src="mom-neutral.png" alt="" onerror="this.style.display='none'"/>
-        <img id="expr-mom-happy"   class="expr-img" src="mom-happy.png"   alt="" onerror="this.style.display='none'"/>
-        <img id="expr-mom-sad"     class="expr-img" src="mom-sad.png"     alt="" onerror="this.style.display='none'"/>
-        <img id="expr-dad-neutral" class="expr-img" src="dad-neutral.png" alt="" onerror="this.style.display='none'"/>
-        <img id="expr-dad-happy"   class="expr-img" src="dad-happy.png"   alt="" onerror="this.style.display='none'"/>
-        <img id="expr-dad-sad"     class="expr-img" src="dad-sad.png"     alt="" onerror="this.style.display='none'"/>
+        <img id="expr-neutral" class="expr-img" src="parents-neutral.png" alt="" onerror="this.style.display='none'"/>
+        <img id="expr-happy"   class="expr-img" src="parents-happy.png"   alt="" onerror="this.style.display='none'"/>
+        <img id="expr-sad"     class="expr-img" src="parents-sad.png"     alt="" onerror="this.style.display='none'"/>
 
         <!-- Fallback shown until images load -->
         <div class="parent-placeholder" id="parentPlaceholder">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
           </svg>
-          <span>520 × 620 px PNG<br>mom-neutral / mom-happy / mom-sad<br>dad-neutral / dad-happy / dad-sad</span>
+          <span>520 × 620 px PNG<br>parents-neutral / parents-happy / parents-sad</span>
         </div>
 
         <div class="sbub-p" id="parentBubble"></div>
@@ -381,10 +385,100 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:var
 
 </div><!-- #app -->
 
-<audio id="ringingAudio" preload="none"><source src="ringing.mp3" type="audio/mpeg"></audio>
-<audio id="pickupAudio" preload="none"><source src="pickup.mp3" type="audio/mpeg"></audio>
+
 
 <script>
+// ──────────────────────────────────────────────
+//  SOUND DESIGN
+// ──────────────────────────────────────────────
+var audioContext = null;
+
+function getAudioContext() {
+  if (!audioContext) {
+    try {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      console.log('Web Audio API not supported');
+      return null;
+    }
+  }
+  return audioContext;
+}
+
+function playRingingSound() {
+  var ctx = getAudioContext();
+  if (!ctx) return;
+  
+  try {
+    var now = ctx.currentTime;
+    
+    // Traditional phone ring - bring bring pattern
+    // First ring
+    var osc1 = ctx.createOscillator();
+    var gain1 = ctx.createGain();
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.frequency.setValueAtTime(400, now);
+    gain1.gain.setValueAtTime(0.15, now);
+    gain1.gain.setValueAtTime(0, now + 0.35);
+    osc1.start(now);
+    osc1.stop(now + 0.35);
+    
+    // Second ring (brings second tone)
+    var osc2 = ctx.createOscillator();
+    var gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.frequency.setValueAtTime(540, now + 0.1);
+    gain2.gain.setValueAtTime(0.15, now + 0.1);
+    gain2.gain.setValueAtTime(0, now + 0.45);
+    osc2.start(now + 0.1);
+    osc2.stop(now + 0.45);
+    
+    // Loop if still on landing screen
+    if (document.getElementById('landing').classList.contains('active')) {
+      setTimeout(function() {
+        playRingingSound();
+      }, 2000);
+    }
+  } catch (e) {
+    console.log('Error playing ringing sound:', e);
+  }
+}
+
+function playPickupSound() {
+  var ctx = getAudioContext();
+  if (!ctx) return;
+  
+  try {
+    var now = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    // Whoosh up sound for pickup
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
+    
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.setValueAtTime(0, now + 0.3);
+    
+    osc.start(now);
+    osc.stop(now + 0.3);
+  } catch (e) {
+    console.log('Error playing sound:', e);
+  }
+}
+
+function playParentTalkSound(text) {
+  // Speech sounds disabled
+}
+
+function stopRingingSound() {
+  // Ringing stops naturally due to the timeout, or when navigating away
+}
+
 // ──────────────────────────────────────────────
 //  STATE
 // ──────────────────────────────────────────────
@@ -655,23 +749,23 @@ var SCENES = [
 
 // ──────────────────────────────────────────────
 //  EXPRESSION CONTROLLER
-//  Shows one expression image, hides the rest.
-//  who: 'mom'|'dad'  state: 'neutral'|'happy'|'sad'
+//  Shows one combined parent expression image, hides the rest.
+//  who: 'mom'|'dad' (ignored, for data structure compatibility)
+//  state: 'neutral'|'happy'|'sad' (determines which image shows)
 // ──────────────────────────────────────────────
 function setExpr(who, state) {
-  var ids = ['mom-neutral','mom-happy','mom-sad','dad-neutral','dad-happy','dad-sad'];
-  var target = who + '-' + state;
+  var ids = ['neutral','happy','sad'];
   for (var i = 0; i < ids.length; i++) {
     var el = document.getElementById('expr-' + ids[i]);
     if (!el) continue;
-    if (ids[i] === target) {
+    if (ids[i] === state) {
       el.classList.add('expr-active');
     } else {
       el.classList.remove('expr-active');
     }
   }
   // Hide placeholder once we have a valid image showing
-  var active = document.getElementById('expr-' + target);
+  var active = document.getElementById('expr-' + state);
   if (active && active.complete && active.naturalWidth > 0) {
     var ph = document.getElementById('parentPlaceholder');
     if (ph) ph.style.display = 'none';
@@ -693,24 +787,22 @@ function goTo(id) {
   setTimeout(function() { el.classList.add('active'); el.style.opacity = '1'; }, 10);
   
   // Control audio based on screen
-  var ringingAudio = document.getElementById('ringingAudio');
   if (id === 'landing') {
     setTimeout(function() {
-      ringingAudio.loop = true;
-      ringingAudio.play().catch(function(err) { console.log('Audio play failed:', err); });
+      playRingingSound();
     }, 600);
   } else {
-    ringingAudio.pause();
-    ringingAudio.currentTime = 0;
+    stopRingingSound();
   }
 }
 
-document.getElementById('landBtn').addEventListener('click', function() { 
+document.getElementById('landBtn').addEventListener('click', function() {
+  // Initialize audio context on first user interaction
+  var ctx = getAudioContext();
+  if (ctx) ctx.resume();
+  
   goTo('namescreen');
-  // Resume audio context for browser autoplay policy
-  var ringingAudio = document.getElementById('ringingAudio');
-  ringingAudio.pause();
-  ringingAudio.currentTime = 0;
+  stopRingingSound();
 });
 
 // ──────────────────────────────────────────────
@@ -724,6 +816,13 @@ function checkReady() {
 function tryStart() {
   var n = document.getElementById('nameInput').value.trim();
   if (n.length < 2) return;
+  
+  // Ensure audio context is initialized and running
+  var ctx = getAudioContext();
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume();
+  }
+  
   userName = n;
   nickName = NICKS[Math.floor(Math.random() * NICKS.length)];
   approvalScore = 50;
@@ -734,6 +833,7 @@ function tryStart() {
   document.getElementById('userVidLbl').textContent = userName.toLowerCase();
   document.getElementById('callerAv').textContent = 'M';
   goTo('callscreen');
+  playPickupSound();
   startWebcam();
   setTimeout(startTimer, 400);
   setTimeout(function() { loadScene(0); }, 1000);
@@ -794,8 +894,11 @@ document.getElementById('endBtn').addEventListener('click', function() {
 function loadScene(idx) {
   if (idx >= SCENES.length) {
     clearInterval(timerInt);
-    buildResults();
-    goTo('meterscreen');
+    stopWebcam();
+    setTimeout(function() {
+      buildResults();
+      goTo('meterscreen');
+    }, 400);
     return;
   }
 
@@ -817,7 +920,7 @@ function loadScene(idx) {
   // set neutral expression for asking parent
   setExpr(scene.who, 'neutral');
 
-  // show typing
+  // show typing with sound synced to dialogue display
   tb.style.display = 'flex';
 
   setTimeout(function() {
@@ -832,7 +935,7 @@ function loadScene(idx) {
     // render choices
     document.getElementById('qLabel').textContent = 'choose your response';
     renderChoices(scene);
-  }, 1800);
+  }, 800);
 }
 
 function renderChoices(scene) {
@@ -877,20 +980,26 @@ function selectChoice(scene, choice, cw) {
 
   pb.style.display = 'none';
   document.getElementById('qLabel').textContent = '';
+  
+  // Immediate expression change for quick visual feedback
+  setExpr(choice.speaker, choice.expr);
+  
+  // Show brief thinking pause
   tb.style.display = 'flex';
 
   setTimeout(function() {
     tb.style.display = 'none';
     rb.textContent = choice.reaction;
     rb.style.display = 'block';
+    // Expression already set above, this confirms it
     setExpr(choice.speaker, choice.expr);
-    setTimeout(nextQuestion, 3200);
-  }, 1600);
+    setTimeout(function() {
+      nextQuestion();
+    }, 2400);
+  }, 400);
 }
 
 function nextQuestion() {
-  document.getElementById('continueBtn').style.display = 'none';
-  document.getElementById('reactBubble').style.display = 'none';
   qIdx++;
   loadScene(qIdx);
 }
